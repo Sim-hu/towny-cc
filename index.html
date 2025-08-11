@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Towny維持費シミュレーター</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+            background-color: #f4f7f9;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 { text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        h2 { border-left: 4px solid #3498db; padding-left: 10px; }
+        .main-container, .settings-container, .result-card {
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+        .input-group, .settings-group {
+            margin-bottom: 15px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        input[type="number"] {
+            width: 100px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+        #chunksInput { width: calc(100% - 120px); font-size: 1.2em; }
+        button {
+            padding: 12px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.2em;
+            margin-left: 10px;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #2980b9; }
+        .result-card .cost {
+            font-size: 1.6em;
+            font-weight: bold;
+            color: #e74c3c;
+            text-align: right;
+        }
+        .formula {
+            font-family: "Courier New", Courier, monospace;
+            background-color: #ecf0f1;
+            padding: 8px;
+            border-radius: 4px;
+            color: #555;
+            font-size: 0.95em;
+            margin-top: 10px;
+            display: block;
+        }
+        .flex-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Towny 国の維持費シミュレーター 💸</h1>
+
+    <div class="settings-container">
+        <h2>⚙️ 詳細設定</h2>
+        <div class="settings-grid">
+            <div class="settings-group">
+                <label for="baseCost">基礎維持費</label>
+                <input type="number" id="baseCost" value="300" oninput="calculateAllCosts()">
+            </div>
+            <div class="settings-group">
+                <label for="linearMultiplier">P1: チャンク単価</label>
+                <input type="number" id="linearMultiplier" value="10" oninput="calculateAllCosts()">
+            </div>
+            <div class="settings-group">
+                <label for="quadraticMultiplier">P2: 調整係数</label>
+                <input type="number" id="quadraticMultiplier" value="0.2" step="0.01" oninput="calculateAllCosts()">
+            </div>
+        </div>
+        <hr>
+        <div class="settings-group">
+            <label>P3: 段階的単価設定</label>
+            <div class="settings-grid">
+                <div>
+                    <label for="progThresh1" style="font-weight:normal;">段階1 (〜Nチャンク)</label>
+                    <div class="flex-container">
+                        <input type="number" id="progThresh1" value="50" oninput="calculateAllCosts()"> <span>チャンクまで</span>
+                        <input type="number" id="progCost1" value="5" oninput="calculateAllCosts()"> <span>円/個</span>
+                    </div>
+                </div>
+                <div>
+                    <label for="progThresh2" style="font-weight:normal;">段階2 (〜Nチャンク)</label>
+                    <div class="flex-container">
+                        <input type="number" id="progThresh2" value="200" oninput="calculateAllCosts()"> <span>チャンクまで</span>
+                        <input type="number" id="progCost2" value="10" oninput="calculateAllCosts()"> <span>円/個</span>
+                    </div>
+                </div>
+                <div>
+                    <label for="progCost3" style="font-weight:normal;">段階3 (それ以上)</label>
+                    <div class="flex-container">
+                        <input type="number" id="progCost3" value="20" oninput="calculateAllCosts()"> <span>円/個</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <h2>🧮 維持費シミュレーション</h2>
+        <div class="input-group flex-container">
+            <input type="number" id="chunksInput" min="0" value="100" placeholder="保護チャンク数を入力" oninput="calculateAllCosts()">
+            <button onclick="calculateAllCosts()">計算</button>
+        </div>
+        <div id="results">
+            </div>
+    </div>
+
+<script>
+    function getNum(id) {
+        // IDから数値を取得し、無効な場合は0を返す
+        return Number(document.getElementById(id).value) || 0;
+    }
+
+    function calculateAllCosts() {
+        // 設定値の取得
+        const baseCost = getNum('baseCost');
+        const linearMultiplier = getNum('linearMultiplier');
+        const quadraticMultiplier = getNum('quadraticMultiplier');
+
+        const progThresh1 = getNum('progThresh1');
+        const progCost1 = getNum('progCost1');
+        const progThresh2 = getNum('progThresh2');
+        const progCost2 = getNum('progCost2');
+        const progCost3 = getNum('progCost3');
+
+        // 計算対象のチャンク数を取得
+        const n = getNum('chunksInput');
+        const resultsElement = document.getElementById('results');
+
+        // ---- パターン1：線形関数 ----
+        const linearCost = baseCost + (n * linearMultiplier);
+
+        // ---- パターン2：二次関数 ----
+        const quadraticCost = baseCost + (quadraticMultiplier * (n ** 2));
+        
+        // ---- パターン3：累進課税 ----
+        let progressiveChunkCost = 0;
+        if (n > 0) {
+            const chunksInTier1 = Math.min(n, progThresh1);
+            progressiveChunkCost += chunksInTier1 * progCost1;
+        }
+        if (n > progThresh1) {
+            const chunksInTier2 = Math.min(n - progThresh1, progThresh2 - progThresh1);
+            progressiveChunkCost += chunksInTier2 * progCost2;
+        }
+        if (n > progThresh2) {
+            const chunksInTier3 = n - progThresh2;
+            progressiveChunkCost += chunksInTier3 * progCost3;
+        }
+        const progressiveCost = baseCost + progressiveChunkCost;
+
+        // ---- 結果のHTMLを生成して表示 ----
+        resultsElement.innerHTML = `
+            <div class="result-card">
+                <h3>パターン1：シンプルな線形関数</h3>
+                <code class="formula">計算式: ${baseCost} + (${n} × ${linearMultiplier})</code>
+                <p class="cost">${Math.round(linearCost).toLocaleString()} 円</p>
+            </div>
+            <div class="result-card">
+                <h3>パターン2：二次関数</h3>
+                <code class="formula">計算式: ${baseCost} + (${quadraticMultiplier} × ${n}²)</code>
+                <p class="cost">${Math.round(quadraticCost).toLocaleString()} 円</p>
+            </div>
+            <div class="result-card">
+                <h3>パターン3：段階的な累進課税</h3>
+                <code class="formula">計算式: ${baseCost} + チャンク毎の合計費用</code>
+                <p class="cost">${Math.round(progressiveCost).toLocaleString()} 円</p>
+            </div>
+        `;
+    }
+
+    // ページ読み込み時に一度計算を実行
+    window.onload = calculateAllCosts;
+</script>
+
+</body>
+</html>
